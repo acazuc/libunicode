@@ -44,6 +44,12 @@ namespace utf8
 	}
 
 	template <class byte_iterator>
+	bool check1(byte_iterator &it)
+	{
+		return true;
+	}
+
+	template <class byte_iterator>
 	uint32_t decode1(byte_iterator &it)
 	{
 		return *(it++);
@@ -57,12 +63,18 @@ namespace utf8
 	}
 
 	template <class byte_iterator>
+	bool check2(byte_iterator &it)
+	{
+		if ((it[0] & 0x1F) < 2)
+			return false;
+		if ((it[1] & 0xC0) != 0x80)
+			return false;
+		return true;
+	}
+
+	template <class byte_iterator>
 	uint32_t decode2(byte_iterator &it)
 	{
-		if (!(it[0] & 0x1F))
-			throw invalid_sequence();
-		if ((it[1] & 0xC0) != 0x80)
-			throw invalid_sequence();
 		uint32_t cp = static_cast<uint32_t>(*(it++) & 0x1F) << 6;
 		cp |= *(it++) & 0x3F;
 		return cp;
@@ -77,14 +89,20 @@ namespace utf8
 	}
 
 	template <class byte_iterator>
+	bool check3(byte_iterator &it)
+	{
+		if (!(it[0] & 0xF) && !(it[1] & 0x20))
+			return false;
+		if ((it[1] & 0xC0) != 0x80)
+			return false;
+		if ((it[2] & 0xC0) != 0x80)
+			return false;
+		return true;
+	}
+
+	template <class byte_iterator>
 	uint32_t decode3(byte_iterator &it)
 	{
-		if (!(it[0] & 0xF))
-			throw invalid_sequence();
-		if ((it[1] & 0xC0) != 0x80)
-			throw invalid_sequence();
-		if ((it[2] & 0xC0) != 0x80)
-			throw invalid_sequence();
 		uint32_t cp = static_cast<uint32_t>(*(it++) & 0xF) << 12;
 		cp |= static_cast<uint32_t>(*(it++) & 0x3F) << 6;
 		cp |= *(it++) & 0x3F;
@@ -101,17 +119,23 @@ namespace utf8
 	}
 
 	template <class byte_iterator>
+	bool check4(byte_iterator &it)
+	{
+		if (!(it[0] & 0x7) && !(it[1] & 0x30))
+			return false;
+		if ((it[1] & 0xC0) != 0x80)
+			return false;
+		if ((it[2] & 0xC0) != 0x80)
+			return false;
+		if ((it[3] & 0xC0) != 0x80)
+			return false;
+		return true;
+	}
+
+	template <class byte_iterator>
 	uint32_t decode4(byte_iterator &it)
 	{
-		if (!(it[0] & 0xC))
-			throw invalid_sequence();
-		if ((it[1] & 0xC0) != 0x80)
-			throw invalid_sequence();
-		if ((it[2] & 0xC0) != 0x80)
-			throw invalid_sequence();
-		if ((it[3] & 0xC0) != 0x80)
-			throw invalid_sequence();
-		uint32_t cp = static_cast<uint32_t>(*(it++) & 0xC) << 18;
+		uint32_t cp = static_cast<uint32_t>(*(it++) & 0x7) << 18;
 		cp |= static_cast<uint32_t>(*(it++) & 0x3F) << 12;
 		cp |= static_cast<uint32_t>(*(it++) & 0x3F) << 6;
 		cp |= *(it++) & 0x3F;
@@ -131,6 +155,24 @@ namespace utf8
 			encode4(it, cp);
 		else
 			throw invalid_codepoint();
+	}
+
+	template <class byte_iterator>
+	uint32_t check(byte_iterator &it)
+	{
+		switch (codepoint_length(it))
+		{
+			case 1:
+				return check1(it);
+			case 2:
+				return check2(it);
+			case 3:
+				return check3(it);
+			case 4:
+				return check4(it);
+		}
+		throw invalid_sequence();
+		return 0;
 	}
 
 	template <class byte_iterator>
@@ -158,24 +200,32 @@ namespace utf8
 		{
 			case 1:
 			{
+				if (!check1(it))
+					throw invalid_sequence();
 				return decode1(it);
 			}
 			case 2:
 			{
 				if (end - it < 2)
 					throw not_enough_room();
+				if (!check2(it))
+					throw invalid_sequence();
 				return decode2(it);
 			}
 			case 3:
 			{
 				if (end - it < 3)
 					throw not_enough_room();
+				if (!check3(it))
+					throw invalid_sequence();
 				return decode3(it);
 			}
 			case 4:
 			{
 				if (end - it < 4)
 					throw not_enough_room();
+				if (!check4(it))
+					throw invalid_sequence();
 				return decode4(it);
 			}
 		}
@@ -202,12 +252,16 @@ namespace utf8
 				{
 					if (org - it != 1)
 						throw invalid_sequence();
+					if (!check1(it))
+						throw invalid_sequence();
 					byte_iterator tmp(it);
 					return decode1(tmp);
 				}
 				case 2:
 				{
 					if (org - it != 2)
+						throw invalid_sequence();
+					if (!check2(it))
 						throw invalid_sequence();
 					byte_iterator tmp(it);
 					return decode2(tmp);
@@ -216,12 +270,16 @@ namespace utf8
 				{
 					if (org - it != 3)
 						throw invalid_sequence();
+					if (!check3(it))
+						throw invalid_sequence();
 					byte_iterator tmp(it);
 					return decode3(tmp);
 				}
 				case 4:
 				{
 					if (org - it != 4)
+						throw invalid_sequence();
+					if (!check4(it))
 						throw invalid_sequence();
 					byte_iterator tmp(it);
 					return decode4(tmp);
@@ -293,19 +351,27 @@ namespace utf8
 			{
 				case 1:
 					++it;
+					if (!check1(it))
+						return it;
 					break;
 				case 2:
 					if (end - it < 2)
+						return it;
+					if (!check2(it))
 						return it;
 					it += 2;
 					break;
 				case 3:
 					if (end - it < 3)
 						return it;
+					if (!check3(it))
+						return it;
 					it += 3;
 					break;
 				case 4:
 					if (end - it < 4)
+						return it;
+					if (!check4(it))
 						return it;
 					it += 4;
 					break;
@@ -344,56 +410,44 @@ namespace utf8
 				case 2:
 					if (end - it < 2)
 						throw not_enough_room();
-					try
+					if (!check2(it))
+						goto invalid;
 					{
 						byte_iterator tmp(it);
-						uint32_t cp = decode2(tmp);
-						if (!unicode::is_codepoint_valid(cp))
+						if (!unicode::is_codepoint_valid(decode2(tmp)))
 							goto invalid;
-						*(out++) = *(it++);
-						*(out++) = *(it++);
 					}
-					catch (std::exception &e)
-					{
-						goto invalid;
-					}
+					*(out++) = *(it++);
+					*(out++) = *(it++);
 					break;
 				case 3:
 					if (end - it < 3)
 						throw not_enough_room();
-					try
+					if (!check3(it))
+						goto invalid;
 					{
 						byte_iterator tmp(it);
-						uint32_t cp = decode3(tmp);
-						if (!unicode::is_codepoint_valid(cp))
+						if (!unicode::is_codepoint_valid(decode3(tmp)))
 							goto invalid;
-						*(out++) = *(it++);
-						*(out++) = *(it++);
-						*(out++) = *(it++);
 					}
-					catch (std::exception &e)
-					{
-						goto invalid;
-					}
+					*(out++) = *(it++);
+					*(out++) = *(it++);
+					*(out++) = *(it++);
 					break;
 				case 4:
 					if (end - it < 4)
 						throw not_enough_room();
-					try
+					if (!check4(it))
+						goto invalid;
 					{
 						byte_iterator tmp(it);
-						uint32_t cp = decode4(tmp);
-						if (!unicode::is_codepoint_valid(cp))
+						if (!unicode::is_codepoint_valid(decode4(tmp)))
 							goto invalid;
-						*(out++) = *(it++);
-						*(out++) = *(it++);
-						*(out++) = *(it++);
-						*(out++) = *(it++);
 					}
-					catch (std::exception &e)
-					{
-						goto invalid;
-					}
+					*(out++) = *(it++);
+					*(out++) = *(it++);
+					*(out++) = *(it++);
+					*(out++) = *(it++);
 					break;
 				default:
 					out = append(replacement, out);
