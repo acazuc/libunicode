@@ -46,6 +46,7 @@ namespace utf8
 	template <class byte_iterator>
 	bool check1(byte_iterator &it)
 	{
+		(void)it;
 		return true;
 	}
 
