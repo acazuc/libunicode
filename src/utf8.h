@@ -306,16 +306,22 @@ namespace utf8
 			case 2:
 				if (end - it < 2)
 					throw not_enough_room();
+				if (!check2(it))
+					throw invalid_sequence();
 				it += 2;
 				break;
 			case 3:
 				if (end - it < 3)
 					throw not_enough_room();
+				if (!check3(it))
+					throw invalid_sequence();
 				it += 3;
 				break;
 			case 4:
 				if (end - it < 4)
 					throw not_enough_room();
+				if (!check4(it))
+					throw invalid_sequence();
 				it += 4;
 				break;
 			default:
